@@ -68,12 +68,19 @@ if "table_schema" not in st.session_state:
     st.session_state.table_schema = None
 
 def get_schema(conn, table_name):
-    # Retrieve schema string for LLM
+    # Retrieve schema string for LLM and a few sample rows
     try:
+        # 1. Get Schema
         schema_df = conn.execute(f"DESCRIBE {table_name}").df()
         schema_str = "Columns and Data Types:\n"
         for _, row in schema_df.iterrows():
             schema_str += f"- {row['column_name']} ({row['column_type']})\n"
+            
+        # 2. Get Sample Rows
+        sample_df = conn.execute(f"SELECT * FROM {table_name} LIMIT 5").df()
+        schema_str += "\nSample Data (Top 5 rows):\n"
+        schema_str += sample_df.to_string(index=False) + "\n"
+        
         return schema_str
     except Exception as e:
         return str(e)
@@ -134,6 +141,7 @@ def generate_sql(user_prompt, schema, history):
     Your goal is to generate a DuckDB SQL query to answer the user's question.
     Only return the SQL query inside a ```sql ... ``` block. DO NOT add any other explanation.
     If the question is conversational and doesn't require querying the database, reply with conversational text (no SQL block).
+    make meaningfull alias for the column names that are derived from some operations.
     """
     
     # Format history for Groq
