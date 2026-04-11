@@ -177,6 +177,7 @@ Rules:
                                     exec(python_code, globals(), local_vars)
                                     custom_clean = local_vars['custom_clean']
                                     cleaned_df = custom_clean(df.copy())
+                                    cleaned_df=clean_dataframe(cleaned_df)
                                     
                                     # Register in DuckDB
                                     table_name = re.sub(r'[^a-zA-Z0-9_]', '_', filename.split('.')[0]).lower()
