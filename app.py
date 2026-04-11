@@ -241,10 +241,17 @@ def generate_summary(user_prompt, data_str, history, schemas_dict, error_msg=Non
     If a graph is sensible, you MUST write a SEPARATE DuckDB SQL query specifically designed for the visualization. This graph query should handle aggregations, formatting, sorting, and limiting (e.g., top 10) appropriately.
     You must also choose the best chart type (bar, line, scatter, pie, histogram, or heatmap), identify the exact column names for the x-axis and y-axis from your graph query's SELECT clause, and if you want to group/color the data by a specific category, provide that column name as well. For pie charts, x_axis acts as the labels and y_axis as the values. For heatmaps, x_axis is x, y_axis is y, and color_col represents the z (values/intensity) column.
     
-    IMPORTANT FOR GRAPH SQL: All columns you refer to in your SELECT clause MUST either exist in the provided schemas or be explicitly computed (e.g., using `COUNT(*) AS number_of_users`). Do NOT hallucinate columns that don't exist.
+    
 
     Database Schemas for Graph Query:
     {schema_text}
+    IMPORTANT FOR GRAPH SQL: [
+        All columns you refer to in your SELECT clause MUST either exist in the provided schemas or be explicitly computed (e.g., using `COUNT(*) AS number_of_users`). Do NOT hallucinate columns that don't exist.,
+        see the schema text for all tables and see how the data is stored in each colmn and how the data is related to each other. also handle things like converting "$123" to 123 and "1,234" to 1234 and "12.34%" to 0.1234 and "2022-01-01" to a date.,
+        If numeric columns contain symbols like '$' or ',', clean using REGEXP_REPLACE.,
+        If numeric values are stored as strings, CAST them properly.,
+        If date columns are strings, convert using CAST or STRPTIME before using EXTRACT.
+    ]
 
     A graph is sensible to show ONLY if:
     1. The data represents meaningful comparisons, trends, or relationships (e.g., categorical distributions, time series).
