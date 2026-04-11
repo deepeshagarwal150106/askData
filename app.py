@@ -6,6 +6,7 @@ import os
 import re
 import time
 from dotenv import load_dotenv
+import plotly.express as px
 
 # Load env variables if any
 load_dotenv()
@@ -129,20 +130,59 @@ else:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
-        if "sql" in message:
+        if "sql" in message and message["sql"]:
             with st.expander("Show Generated SQL"):
                 st.code(message["sql"], language="sql")
-        if "data" in message:
+        if "data" in message and message["data"] is not None:
             st.dataframe(message["data"], use_container_width=True)
-        if "chart_type" in message and message["chart_type"]:
-            chart_type = message["chart_type"]
-            data = message["data"]
-            if chart_type == "bar":
-                st.bar_chart(data)
-            elif chart_type == "line":
-                st.line_chart(data)
-            elif chart_type == "scatter":
-                st.scatter_chart(data)
+            
+        chart_type = message.get("chart_type")
+        if chart_type:
+            graph_df = message.get("graph_df", message.get("data"))
+            x_axis = message.get("x_axis")
+            y_axis = message.get("y_axis")
+            
+            color_col = message.get("color_col")
+            color_arg = color_col if color_col and str(color_col).lower() != "none" else None
+
+            if "graph_sql" in message and message["graph_sql"]:
+                with st.expander("Show Graph SQL"):
+                    st.code(message["graph_sql"], language="sql")
+                    
+            try:
+                if x_axis and y_axis:
+                    if chart_type == "bar":
+                        st.bar_chart(graph_df, x=x_axis, y=y_axis, color=color_arg)
+                    elif chart_type == "line":
+                        st.line_chart(graph_df, x=x_axis, y=y_axis, color=color_arg)
+                    elif chart_type == "scatter":
+                        st.scatter_chart(graph_df, x=x_axis, y=y_axis, color=color_arg)
+                    elif chart_type in ["pie", "histogram", "heatmap"]:
+                        y_val = y_axis[0] if isinstance(y_axis, list) and y_axis else y_axis
+                        if chart_type == "pie":
+                            fig = px.pie(graph_df, names=x_axis, values=y_val, color=color_arg)
+                        elif chart_type == "histogram":
+                            fig = px.histogram(graph_df, x=x_axis, y=y_val, color=color_arg)
+                        elif chart_type == "heatmap":
+                            fig = px.density_heatmap(graph_df, x=x_axis, y=y_val, z=color_arg)
+                        st.plotly_chart(fig, use_container_width=True)
+                else:
+                    if chart_type == "bar":
+                        st.bar_chart(graph_df)
+                    elif chart_type == "line":
+                        st.line_chart(graph_df)
+                    elif chart_type == "scatter":
+                        st.scatter_chart(graph_df)
+                    elif chart_type in ["pie", "histogram", "heatmap"]:
+                        if chart_type == "pie":
+                            fig = px.pie(graph_df)
+                        elif chart_type == "histogram":
+                            fig = px.histogram(graph_df)
+                        elif chart_type == "heatmap":
+                            fig = px.density_heatmap(graph_df)
+                        st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error rendering chart: {e}")
 
 # --- LLM FUNCTIONS ---
 def generate_sql(user_prompt, schemas_dict, history, error_msg=None):
@@ -187,24 +227,47 @@ def generate_sql(user_prompt, schemas_dict, history, error_msg=None):
         return sql_match.group(1).strip(), reply
     return None, reply
 
-def generate_summary(user_prompt, data_str, history):
-    system_instruction = """
+def generate_summary(user_prompt, data_str, history, schemas_dict, error_msg=None):
+    schema_text = ""
+    for t_name, t_schema in schemas_dict.items():
+        schema_text += f"Table: {t_name}\n{t_schema}\n\n"
+
+    system_instruction = f"""
     You are an AI Data Assistant. The user asked a question, and a SQL query was executed against their data.
-    You will be provided with the user's question and the resulting data (in string format).
+    You will be provided with the user's question, the query results (data), and the database schemas.
     Please provide a concise, natural language summary of the results answering the user's question.
     
-    Additionally, if the data is a 1D or 2D series that makes sense to visualize, output exactly one of the following strings on a new line at the end of your response to render a chart:
-    [CHART:bar]
-    [CHART:line]
-    [CHART:scatter]
-    If it doesn't make sense to visualize, DO NOT output a [CHART:...] tag.
-    """
+    Additionally, you must strictly evaluate whether visualizing the answer as a chart makes logical sense. 
+    If a graph is sensible, you MUST write a SEPARATE DuckDB SQL query specifically designed for the visualization. This graph query should handle aggregations, formatting, sorting, and limiting (e.g., top 10) appropriately.
+    You must also choose the best chart type (bar, line, scatter, pie, histogram, or heatmap), identify the exact column names for the x-axis and y-axis from your graph query's SELECT clause, and if you want to group/color the data by a specific category, provide that column name as well. For pie charts, x_axis acts as the labels and y_axis as the values. For heatmaps, x_axis is x, y_axis is y, and color_col represents the z (values/intensity) column.
     
+    IMPORTANT FOR GRAPH SQL: All columns you refer to in your SELECT clause MUST either exist in the provided schemas or be explicitly computed (e.g., using `COUNT(*) AS number_of_users`). Do NOT hallucinate columns that don't exist.
+
+    Database Schemas for Graph Query:
+    {schema_text}
+
+    A graph is sensible to show ONLY if:
+    1. The data represents meaningful comparisons, trends, or relationships (e.g., categorical distributions, time series).
+    2. The data is not just a single scalar value, a list of IDs/names without metrics, or unrelated text.
+
+    If a graph makes sense, append the following XML tags at the end of your response:
+    <chart_type>bar OR line OR scatter OR pie OR histogram OR heatmap</chart_type>
+    <graph_sql>your duckdb sql query here</graph_sql>
+    <x_axis>column_name_for_x</x_axis>
+    <y_axis>column_name_for_y_or_comma_separated</y_axis>
+    <color_col>column_name_for_color_or_legend_if_needed_else_NONE</color_col>
+    
+    If a graph would be senseless or uninformative, DO NOT output any of these tags.
+    """
+
+    if error_msg:
+        system_instruction += f"\n\nWARNING: Your previous graph query failed with error: {error_msg}\nPlease fix the graph SQL query so it works correctly."
+
     messages_payload = [{"role": "system", "content": system_instruction}]
     # Optional: pass history here if context is strictly needed for the summary, 
     # but since Groq context limits are large enough, we can afford it.
     # To save tokens, we only pass the recent user prompt and data.
-    user_content = f"User Question: {user_prompt}\\n\\nQuery Results:\\n{data_str}"
+    user_content = f"User Question: {user_prompt}\n\nQuery Results:\n{data_str}"
     messages_payload.append({"role": "user", "content": user_content})
     
     response = client.chat.completions.create(
@@ -215,17 +278,27 @@ def generate_summary(user_prompt, data_str, history):
     
     reply = response.choices[0].message.content
     
-    # Extract chart tag if any
-    chart_match = re.search(r"\[CHART:(bar|line|scatter)\]", reply, re.IGNORECASE)
-    chart_type = None
-    if chart_match:
-        chart_type = chart_match.group(1).lower()
-        # Clean the text
-        text = re.sub(r"\[CHART:(bar|line|scatter)\]", "", reply, flags=re.IGNORECASE).strip()
-    else:
-        text = reply.strip()
-        
-    return text, chart_type
+    # Extract tags if any
+    chart_type_match = re.search(r"<chart_type>(.*?)</chart_type>", reply, re.IGNORECASE | re.DOTALL)
+    graph_sql_match = re.search(r"<graph_sql>(.*?)</graph_sql>", reply, re.IGNORECASE | re.DOTALL)
+    x_axis_match = re.search(r"<x_axis>(.*?)</x_axis>", reply, re.IGNORECASE | re.DOTALL)
+    y_axis_match = re.search(r"<y_axis>(.*?)</y_axis>", reply, re.IGNORECASE | re.DOTALL)
+    color_col_match = re.search(r"<color_col>(.*?)</color_col>", reply, re.IGNORECASE | re.DOTALL)
+    
+    chart_type = chart_type_match.group(1).strip().lower() if chart_type_match else None
+    graph_sql = graph_sql_match.group(1).strip() if graph_sql_match else None
+    x_axis = x_axis_match.group(1).strip() if x_axis_match else None
+    y_axis = [y.strip() for y in y_axis_match.group(1).split(',')] if y_axis_match else None
+    color_col = color_col_match.group(1).strip() if color_col_match else None
+
+    # Remove all tags from text to just keep the summary
+    text = re.sub(r"<chart_type>.*?</chart_type>", "", reply, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<graph_sql>.*?</graph_sql>", "", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<x_axis>.*?</x_axis>", "", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<y_axis>.*?</y_axis>", "", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<color_col>.*?</color_col>", "", text, flags=re.IGNORECASE | re.DOTALL).strip()
+    
+    return text, chart_type, graph_sql, x_axis, y_axis, color_col
 
 # --- USER INPUT ---
 if prompt := st.chat_input("Ask a question about your data..."):
@@ -272,29 +345,96 @@ if prompt := st.chat_input("Ask a question about your data..."):
             data_str_for_llm = df_result.head(100).to_string()
             st.dataframe(df_result, use_container_width=True)
             
-            with st.spinner("Generating summary..."):
-                try:
-                    summary_text, chart_type = generate_summary(prompt, data_str_for_llm, st.session_state.messages)
-                    st.markdown(summary_text)
-                    
-                    if chart_type:
-                        if chart_type == "bar":
-                            st.bar_chart(df_result)
-                        elif chart_type == "line":
-                            st.line_chart(df_result)
-                        elif chart_type == "scatter":
-                            st.scatter_chart(df_result)
+            with st.spinner("Generating summary and graph..."):
+                summary_max_retries = 3
+                summary_attempt = 0
+                summary_success = False
+                graph_error_msg = None
+                
+                final_summary_text = ""
+                final_chart_type = None
+                final_graph_sql = None
+                final_x_axis = None
+                final_y_axis = None
+                final_color_col = None
+                final_graph_df = None
+                
+                while summary_attempt <= summary_max_retries and not summary_success:
+                    try:
+                        summary_text, chart_type, graph_sql, x_axis, y_axis, color_col = generate_summary(prompt, data_str_for_llm, st.session_state.messages, st.session_state.table_schemas, graph_error_msg)
+                        
+                        final_summary_text = summary_text
+                        final_chart_type = chart_type
+                        final_graph_sql = graph_sql
+                        final_x_axis = x_axis
+                        final_y_axis = y_axis
+                        final_color_col = color_col
+                        
+                        if chart_type and graph_sql and x_axis and y_axis:
+                            try:
+                                # Clean up formatting that LLMs sometimes hallucinate around the SQL
+                                clean_sql = re.sub(r'```sql\n', '', graph_sql, flags=re.IGNORECASE)
+                                clean_sql = re.sub(r'\n```', '', clean_sql, flags=re.IGNORECASE)
+                                clean_sql = clean_sql.strip()
+
+                                final_graph_df = st.session_state.duckdb_conn.execute(clean_sql).df()
+                                summary_success = True
+                            except Exception as de:
+                                graph_error_msg = f"Graph SQL Execution Error: {de}"
+                                summary_attempt += 1
+                                if summary_attempt > summary_max_retries:
+                                    st.warning(f"Could not execute graph query after {summary_max_retries} retries: {de}")
+                                    final_chart_type = None # prevent saving broken chart info
+                                    summary_success = True
+                                continue
+                        else:
+                            summary_success = True
                             
+                    except Exception as e:
+                        st.error(f"Error generating summary API call: {e}")
+                        # Don't infinitely retry API errors unless we explicitly want to, we'll just break
+                        summary_success = True
+                        break
+
+                if final_summary_text:
+                    st.markdown(final_summary_text)
+                    if final_chart_type and final_graph_df is not None:
+                        try:
+                            # Evaluate color argument logic
+                            color_arg = final_color_col if final_color_col and str(final_color_col).lower() != "none" else None
+                            
+                            # Render the chart
+                            if final_chart_type == "bar":
+                                st.bar_chart(final_graph_df, x=final_x_axis, y=final_y_axis, color=color_arg)
+                            elif final_chart_type == "line":
+                                st.line_chart(final_graph_df, x=final_x_axis, y=final_y_axis, color=color_arg)
+                            elif final_chart_type == "scatter":
+                                st.scatter_chart(final_graph_df, x=final_x_axis, y=final_y_axis, color=color_arg)
+                            elif final_chart_type in ["pie", "histogram", "heatmap"]:
+                                y_val = final_y_axis[0] if isinstance(final_y_axis, list) and final_y_axis else final_y_axis
+                                if final_chart_type == "pie":
+                                    fig = px.pie(final_graph_df, names=final_x_axis, values=y_val, color=color_arg)
+                                elif final_chart_type == "histogram":
+                                    fig = px.histogram(final_graph_df, x=final_x_axis, y=y_val, color=color_arg)
+                                elif final_chart_type == "heatmap":
+                                    fig = px.density_heatmap(final_graph_df, x=final_x_axis, y=y_val, z=color_arg)
+                                st.plotly_chart(fig, use_container_width=True)
+                        except Exception as e:
+                            st.warning(f"Could not render graph UI: {e}")
+                            final_chart_type = None
+
                     st.session_state.messages.append({
                         "role": "assistant", 
-                        "content": summary_text,
+                        "content": final_summary_text,
                         "sql": sql_query,
                         "data": df_result,
-                        "chart_type": chart_type
+                        "chart_type": final_chart_type,
+                        "graph_sql": final_graph_sql,
+                        "graph_df": final_graph_df,
+                        "x_axis": final_x_axis,
+                        "y_axis": final_y_axis,
+                        "color_col": final_color_col
                     })
-                except Exception as e:
-                    st.error(f"Error generating summary: {e}")
-                    st.session_state.messages.append({"role": "assistant", "content": f"Query succeeded, but error generating summary: {e}"})
         elif success and not sql_query:
             st.markdown(conversational_fallback)
             st.session_state.messages.append({"role": "assistant", "content": conversational_fallback})
