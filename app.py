@@ -4,6 +4,7 @@ import duckdb
 from groq import Groq
 import os
 import re
+import numpy as np
 import time
 from dotenv import load_dotenv
 import plotly.express as px
@@ -50,6 +51,7 @@ with st.sidebar:
 
     # Groq model selector (Gemma, Llama)
     model_name = st.selectbox("Select Model", [
+        "openai/gpt-oss-120b",
         "llama-3.3-70b-versatile",
         "llama-3.1-8b-instant",  
         "gemma2-9b-it", 
@@ -73,6 +75,12 @@ if "table_schemas" not in st.session_state:
 if "data_loaded_files" not in st.session_state:
     st.session_state.data_loaded_files = set()
 
+if "pending_files" not in st.session_state:
+    st.session_state.pending_files = {}
+
+if "cleaning_questions" not in st.session_state:
+    st.session_state.cleaning_questions = {}
+
 def get_schema(conn, table_name):
     # Retrieve schema string for LLM and a few sample rows
     try:
@@ -94,38 +102,123 @@ def get_schema(conn, table_name):
 # --- DATA LOADING ---
 if uploaded_files:
     for uploaded_file in uploaded_files:
-        if uploaded_file.name not in st.session_state.data_loaded_files:
+        if uploaded_file.name not in st.session_state.data_loaded_files and uploaded_file.name not in st.session_state.pending_files:
             try:
                 df = pd.read_csv(uploaded_file)
-                df=clean_dataframe(df)
-                # Register in DuckDB
-                # Clean table name
-                table_name = re.sub(r'[^a-zA-Z0-9_]', '_', uploaded_file.name.split('.')[0]).lower()
-                
-                # Make unique if needed
-                original_table_name = table_name
-                counter = 1
-                while table_name in st.session_state.table_schemas:
-                    table_name = f"{original_table_name}_{counter}"
-                    counter += 1
-                
-                st.session_state.duckdb_conn.register(table_name, df)
-                
-                # Extract schema
-                st.session_state.table_schemas[table_name] = get_schema(st.session_state.duckdb_conn, table_name)
-                st.session_state.data_loaded_files.add(uploaded_file.name)
-                st.session_state.messages.append({"role": "assistant", "content": f"✅ Successfully loaded `{uploaded_file.name}` as table `{table_name}`. Use the chat to ask questions about your data!"})
+                st.session_state.pending_files[uploaded_file.name] = df
             except Exception as e:
-                st.error(f"Error loading {uploaded_file.name}: {e}")
+                st.error(f"Error reading {uploaded_file.name}: {e}")
                 st.stop()
+
+# --- DATA CLEANING SETUP ---
+if st.session_state.pending_files:
+    st.header("🛠️ Data Setup & Review")
+    st.markdown("Before querying, let's clean your data. Please review the recommended actions below for each file.")
+    
+    for filename, df in list(st.session_state.pending_files.items()):
+        with st.expander(f"Clean file: {filename}", expanded=True):
+            if filename not in st.session_state.cleaning_questions:
+                with st.spinner(f"Analyzing {filename} for cleaning..."):
+                    schema_str = "Columns and Data Types:\n" + str(df.dtypes) + "\n\nSample Data:\n" + df.head(10).to_string()
+                    system_prompt = "You are a Data Cleaning Expert. Analyze the dataframe schema and sample data. Identify anomalies like missing values (NaN, null strings), incorrect data types, currency formatting strings (e.g. '$123' instead of numeric), or date strings that need conversion. Give me a concise summary of the problems found and ask the user how they want to handle them (e.g. drop nulls or fill with mean? Strip '$'?). Be conversational and brief."
+                    try:
+                        response = client.chat.completions.create(
+                            model=model_name,
+                            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": schema_str}],
+                            temperature=0.3
+                        )
+                        st.session_state.cleaning_questions[filename] = response.choices[0].message.content
+                    except Exception as e:
+                        st.session_state.cleaning_questions[filename] = f"Could not analyze data due to API error: {e}"
             
+            st.markdown(st.session_state.cleaning_questions[filename])
+            
+            user_instruction = st.text_area("How would you like to clean this data?", key=f"clean_input_{filename}")
+            
+            if st.button("Apply Cleaning & Load", key=f"clean_btn_{filename}"):
+                if user_instruction:
+                    with st.spinner("Executing cleaning..."):
+                        schema_for_cleaning = "Columns and Data Types:\n" + str(df.dtypes) + "\n\nSample Data:\n" + df.head(10).to_string()
+                        cleaning_prompt = f"""
+You are a strict code generator. Generate a python function named `custom_clean` that takes a pandas DataFrame `df` as input and returns the cleaned DataFrame.
+Apply the user's instructions to clean the data.
+User Instructions: "{user_instruction}"
+
+Data Schema & Sample:
+{schema_for_cleaning}
+
+Rules:
+1. You MUST use only Pandas and standard Python libraries (re, numpy). `import pandas as pd`, `import numpy as np`, `import re` inside the function.
+2. Return the function strictly inside ```python ... ``` block. No other text.
+3. Be robust and handle missing columns gracefully if requested.
+"""
+                        max_retries = 3
+                        attempt = 0
+                        success = False
+                        error_msg = ""
+                        
+                        while attempt < max_retries and not success:
+                            prompt_to_send = cleaning_prompt
+                            if error_msg:
+                                prompt_to_send += f"\n\nPrevious attempt failed with error: {error_msg}. Please fix the python code."
+                                
+                            try:
+                                code_response = client.chat.completions.create(
+                                    model=model_name,
+                                    messages=[{"role": "user", "content": prompt_to_send}],
+                                    temperature=0.1
+                                )
+                                code_str = code_response.choices[0].message.content
+                                
+                                code_match = re.search(r"```python(.*?)```", code_str, re.DOTALL | re.IGNORECASE)
+                                if code_match:
+                                    python_code = code_match.group(1).strip()
+                                    local_vars = {}
+                                    exec(python_code, globals(), local_vars)
+                                    custom_clean = local_vars['custom_clean']
+                                    cleaned_df = custom_clean(df.copy())
+                                    
+                                    # Register in DuckDB
+                                    table_name = re.sub(r'[^a-zA-Z0-9_]', '_', filename.split('.')[0]).lower()
+                                    original_table_name = table_name
+                                    counter = 1
+                                    while table_name in st.session_state.table_schemas:
+                                        table_name = f"{original_table_name}_{counter}"
+                                        counter += 1
+                                    
+                                    st.session_state.duckdb_conn.register(table_name, cleaned_df)
+                                    st.session_state.table_schemas[table_name] = get_schema(st.session_state.duckdb_conn, table_name)
+                                    st.session_state.data_loaded_files.add(filename)
+                                    del st.session_state.pending_files[filename]
+                                    st.session_state.messages.append({"role": "assistant", "content": f"✅ Successfully cleaned and loaded `{filename}` as table `{table_name}`. Use the chat to ask questions about your data!"})
+                                    st.rerun() 
+                                    success = True
+                                else:
+                                    error_msg = "No python code block found in response."
+                                    attempt += 1
+                            except Exception as e:
+                                error_msg = str(e)
+                                attempt += 1
+                                
+                        if not success:
+                            st.error(f"Failed to apply cleaning after {max_retries} attempts. Last error: {error_msg}")
+                            with st.expander("Show Generated Code Attempt"):
+                                st.code(python_code if 'python_code' in locals() else code_str)
+                else:
+                    st.warning("Please provide cleaning instructions.")
+
+    # Stop execution here if there are pending files so user must clean them before chat
+    if st.session_state.pending_files:
+        st.stop()
+
+if st.session_state.data_loaded_files:
     st.sidebar.success(f"Loaded {len(st.session_state.data_loaded_files)} file(s)")
     st.sidebar.markdown("**Schemas:**")
     for t_name, t_schema in st.session_state.table_schemas.items():
         with st.sidebar.expander(f"Table: {t_name}"):
             st.text(t_schema)
 
-else:
+if not st.session_state.data_loaded_files and not st.session_state.pending_files:
     st.info("👈 Please upload CSV file(s) from the sidebar to get started.")
     st.stop()
 
@@ -332,6 +425,7 @@ def generate_summary(user_prompt, data_str, history, schemas_dict, error_msg=Non
 # --- USER INPUT ---
 st.markdown("---")
 st.write("🎙️ **Voice Input:**")
+
 stt_text = speech_to_text(
     language='en',
     start_prompt="Click to Speak",
@@ -339,6 +433,7 @@ stt_text = speech_to_text(
     just_once=True,
     key='STT'
 )
+
 
 prompt = st.chat_input("Ask a question about your data...")
 
