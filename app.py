@@ -6,6 +6,7 @@ import os
 import re
 import numpy as np
 import time
+import json
 from dotenv import load_dotenv
 import plotly.express as px
 from cleaner import clean_dataframe
@@ -51,8 +52,8 @@ with st.sidebar:
 
     # Groq model selector (Gemma, Llama)
     model_name = st.selectbox("Select Model", [
-        "openai/gpt-oss-120b",
         "llama-3.3-70b-versatile",
+        "openai/gpt-oss-120b",
         "llama-3.1-8b-instant",  
         "gemma2-9b-it", 
         "mixtral-8x7b-32768"
@@ -80,6 +81,12 @@ if "pending_files" not in st.session_state:
 
 if "cleaning_questions" not in st.session_state:
     st.session_state.cleaning_questions = {}
+
+if "insights_data" not in st.session_state:
+    st.session_state.insights_data = None
+
+if "trigger_prompt" not in st.session_state:
+    st.session_state.trigger_prompt = None
 
 def get_schema(conn, table_name):
     # Retrieve schema string for LLM and a few sample rows
@@ -223,6 +230,195 @@ if not st.session_state.data_loaded_files and not st.session_state.pending_files
     st.info("👈 Please upload CSV file(s) from the sidebar to get started.")
     st.stop()
 
+def generate_insight_plan(schemas_dict, error_msg=None):
+    schema_text = ""
+    for t_name, t_schema in schemas_dict.items():
+        schema_text += f"Table: {t_name}\n{t_schema}\n\n"
+
+    system_instruction = f"""
+    You are an expert Senior Data Analyst.
+    The user has uploaded the following tables with their schemas and sample data:
+    
+    {schema_text}
+    
+    Your goal is to provide a comprehensive executive summary, some questions he can ask and analytical plan based on this data.
+    You MUST output valid JSON only, using the exact structure below. Do not wrap the JSON in markdown blocks unless it is ```json ... ```.
+    
+    JSON Structure:
+    {{
+      "summary": "A high-level natural language summary of what the data represents overall. Be professional and concise.",
+      "insights": [
+        {{
+          "title": "Insight Title (e.g., Highest Revenue by Category)",
+          "description": "Short explanation of what this insight tells us.",
+          "sql_query": "DuckDB SQL query to fetch the exact numbers for this insight.",
+          "is_graph": true, 
+          "chart_type": "bar",
+          "x_axis": "column_name",
+          "y_axis": "column_name",
+          "color_col": "column_name"
+        }}
+      ],
+      "suggested_questions": [
+        "What is the overall trend in sales?"
+      ]
+    }}
+    
+    IMPORTANT RULES FOR SQL:
+    - Queries must be valid DuckDB SQL matching the provided schemas.
+    - Limit results to sensible numbers (e.g., top 10) for graphs.
+    """
+
+    if error_msg:
+        system_instruction += f"\n\nPREVIOUS ERROR: Your previous JSON was invalid or failed softly. Please fix it. Error: {error_msg}"
+        
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=[{"role": "system", "content": system_instruction}],
+        temperature=0.3
+    )
+    
+    reply = response.choices[0].message.content
+    return reply
+
+def fix_insight_sql(failed_sql, error_msg, schemas_dict):
+    schema_text = ""
+    for t_name, t_schema in schemas_dict.items():
+        schema_text += f"Table: {t_name}\n{t_schema}\n\n"
+
+    system_instruction = f"""
+    You are a DuckDB SQL expert. 
+    The following SQL query failed with the error below:
+    
+    ERROR: {error_msg}
+    
+    FAILED SQL:
+    {failed_sql}
+    
+    Schemas:
+    {schema_text}
+    
+    Return ONLY the corrected SQL query inside a ```sql ... ``` block. Do not provide any other text.
+    """
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=[{"role": "system", "content": system_instruction}],
+        temperature=0.1
+    )
+    reply = response.choices[0].message.content
+    sql_match = re.search(r"```sql(.*?)```", reply, re.DOTALL | re.IGNORECASE)
+    if sql_match:
+        return sql_match.group(1).strip()
+    clean_sql = re.sub(r'```.*?\n', '', reply, flags=re.IGNORECASE)
+    clean_sql = re.sub(r'\n```', '', clean_sql, flags=re.IGNORECASE)
+    return clean_sql.strip()
+    
+def build_and_execute_insights(schemas_dict, duckdb_conn):
+    plan_json_str = generate_insight_plan(schemas_dict)
+    
+    try:
+        if plan_json_str.strip().startswith("```json"):
+            plan_json_str = re.sub(r"^```json\s*", "", plan_json_str.strip(), flags=re.IGNORECASE)
+            plan_json_str = re.sub(r"\s*```$", "", plan_json_str)
+            
+        plan = json.loads(plan_json_str.strip())
+    except Exception as e:
+        return {"summary": f"Failed to parse analyst plan: {e}", "insights": [], "suggested_questions": []}
+        
+    evaluated_insights = []
+    
+    for insight in plan.get("insights", []):
+        sql = insight.get("sql_query")
+        if not sql:
+            continue
+            
+        success = False
+        df_res = None
+        current_sql = sql
+        
+        for attempt in range(3):
+            try:
+                df_res = duckdb_conn.execute(current_sql).df()
+                success = True
+                break
+            except Exception as e:
+                try:
+                    current_sql = fix_insight_sql(current_sql, str(e), schemas_dict)
+                except:
+                    break
+                    
+        if success:
+            insight["sql_query"] = current_sql
+            insight["data"] = df_res
+            evaluated_insights.append(insight)
+            
+    plan["insights"] = evaluated_insights
+    return plan
+
+
+# --- EXECUTIVE INSIGHTS ---
+if not st.session_state.pending_files and st.session_state.data_loaded_files:
+    if not st.session_state.insights_data:
+        with st.spinner("🧠 Generating Executive Data Insights..."):
+            st.session_state.insights_data = build_and_execute_insights(st.session_state.table_schemas, st.session_state.duckdb_conn)
+            
+    insights_data = st.session_state.insights_data
+    if insights_data and insights_data.get("summary"):
+        st.header("📊 Executive Data Insights")
+        st.markdown(insights_data["summary"])
+        
+        insights = insights_data.get("insights", [])
+        if insights:
+            st.subheader("Key Findings")
+            for i, ins in enumerate(insights):
+                with st.expander(f"✨ {ins.get('title', f'Insight {i+1}')}"):
+                    st.markdown(f"**{ins.get('description', '')}**")
+                    
+                    df = ins.get("data")
+                    if df is not None:
+                         if ins.get("is_graph") and ins.get("chart_type"):
+                             chart_type = ins.get("chart_type")
+                             x_col = ins.get("x_axis")
+                             y_col = ins.get("y_axis")
+                             color_col = ins.get("color_col")
+                             color_arg = color_col if color_col and str(color_col).lower() != "none" else None
+                             
+                             try:
+                                 if chart_type == "bar":
+                                     st.bar_chart(df, x=x_col, y=y_col, color=color_arg)
+                                 elif chart_type == "line":
+                                     st.line_chart(df, x=x_col, y=y_col, color=color_arg)
+                                 elif chart_type == "scatter":
+                                     st.scatter_chart(df, x=x_col, y=y_col, color=color_arg)
+                                 elif chart_type in ["pie", "histogram", "heatmap"]:
+                                     y_val = y_col[0] if isinstance(y_col, list) and y_col else y_col
+                                     if chart_type == "pie":
+                                         fig = px.pie(df, names=x_col, values=y_val, color=color_arg)
+                                     elif chart_type == "histogram":
+                                         fig = px.histogram(df, x=x_col, y=y_val, color=color_arg)
+                                     elif chart_type == "heatmap":
+                                         fig = px.density_heatmap(df, x=x_col, y=y_val, z=color_arg)
+                                     st.plotly_chart(fig, use_container_width=True)
+                             except Exception as e:
+                                 st.warning(f"Could not render graph: {e}")
+                                 st.dataframe(df, use_container_width=True)
+                         else:
+                             st.dataframe(df, use_container_width=True)
+                             
+                    with st.popover("View SQL"):
+                         st.code(ins.get("sql_query", ""), language="sql")
+                         
+        suggested = insights_data.get("suggested_questions", [])
+        if suggested:
+            st.subheader("Suggested Questions")
+            cols = st.columns(len(suggested))
+            for i, q in enumerate(suggested):
+                if cols[i].button(q, key=f"sugg_q_{i}", use_container_width=True):
+                    st.session_state.trigger_prompt = q
+                    st.rerun()
+
+    st.markdown("---")
+
 # --- CHAT DISPLAY ---
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
@@ -286,6 +482,7 @@ for message in st.session_state.messages:
                 st.error(f"Error rendering chart: {e}")
 
 # --- LLM FUNCTIONS ---
+
 def generate_sql(user_prompt, schemas_dict, history, error_msg=None):
     schema_text = ""
     for t_name, t_schema in schemas_dict.items():
@@ -440,6 +637,10 @@ prompt = st.chat_input("Ask a question about your data...")
 
 if stt_text:
     prompt = stt_text
+
+if st.session_state.trigger_prompt:
+    prompt = st.session_state.trigger_prompt
+    st.session_state.trigger_prompt = None
 
 if prompt:
     # Render user prompt
