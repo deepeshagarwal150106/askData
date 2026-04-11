@@ -7,6 +7,7 @@ import re
 import time
 from dotenv import load_dotenv
 import plotly.express as px
+from cleaner import clean_dataframe
 
 # Load env variables if any
 load_dotenv()
@@ -95,6 +96,7 @@ if uploaded_files:
         if uploaded_file.name not in st.session_state.data_loaded_files:
             try:
                 df = pd.read_csv(uploaded_file)
+                df=clean_dataframe(df)
                 # Register in DuckDB
                 # Clean table name
                 table_name = re.sub(r'[^a-zA-Z0-9_]', '_', uploaded_file.name.split('.')[0]).lower()
@@ -131,8 +133,12 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if "sql" in message and message["sql"]:
-            with st.expander("Show Generated SQL"):
+            with st.expander("Show Query Details"):
                 st.code(message["sql"], language="sql")
+                if message.get("explanation"):
+                    st.markdown(f"**Explanation:** {message['explanation']}")
+                if message.get("confidence"):
+                    st.markdown(f"**Confidence:** {message['confidence']}%")
         if "data" in message and message["data"] is not None:
             st.dataframe(message["data"], use_container_width=True)
             
@@ -199,8 +205,12 @@ def generate_sql(user_prompt, schemas_dict, history, error_msg=None):
     Your goal is to generate a DuckDB SQL query to answer the user's question.
     Please carefully infer primary and foreign keys across these tables by analyzing column names (e.g., matching 'id' to 'user_id' or 'customer_id') and use them to construct correct JOIN operations when the question requires data from multiple tables.
     
-    Only return the SQL query inside a ```sql ... ``` block. DO NOT add any other explanation.
-    If the question is conversational and doesn't require querying the database, reply with conversational text (no SQL block).
+    You MUST provide the following in your answer:
+    1. The SQL query inside a ```sql ... ``` block.
+    2. A brief explanation of the query logic inside <explanation>...</explanation> tags.
+    3. Your confidence in the generated query on a scale of 0 to 100 inside <confidence>...</confidence> tags.
+    
+    If the question is conversational and doesn't require querying the database, simply reply with natural language and do not use the SQL block, explanation, or confidence tags.
     Make meaningful alias for the column names that are derived from some operations.
     """
     
@@ -221,11 +231,21 @@ def generate_sql(user_prompt, schemas_dict, history, error_msg=None):
     
     reply = response.choices[0].message.content
     
-    # Extract SQL
+    # Extract SQL, Explanation and Confidence
     sql_match = re.search(r"```sql(.*?)```", reply, re.DOTALL | re.IGNORECASE)
+    explanation_match = re.search(r"<explanation>(.*?)</explanation>", reply, re.DOTALL | re.IGNORECASE)
+    confidence_match = re.search(r"<confidence>(.*?)</confidence>", reply, re.DOTALL | re.IGNORECASE)
+    
+    explanation = explanation_match.group(1).strip() if explanation_match else None
+    confidence = confidence_match.group(1).strip() if confidence_match else None
+
     if sql_match:
-        return sql_match.group(1).strip(), reply
-    return None, reply
+        sql = sql_match.group(1).strip()
+        clean_fallback = re.sub(r"```sql.*?```", "", reply, flags=re.DOTALL | re.IGNORECASE)
+        clean_fallback = re.sub(r"<explanation>.*?</explanation>", "", clean_fallback, flags=re.DOTALL | re.IGNORECASE)
+        clean_fallback = re.sub(r"<confidence>.*?</confidence>", "", clean_fallback, flags=re.DOTALL | re.IGNORECASE)
+        return sql, clean_fallback.strip(), explanation, confidence
+    return None, reply, None, None
 
 def generate_summary(user_prompt, data_str, history, schemas_dict, error_msg=None):
     schema_text = ""
@@ -323,13 +343,15 @@ if prompt := st.chat_input("Ask a question about your data..."):
         success = False
         sql_query = None
         conversational_fallback = None
+        explanation = None
+        confidence = None
         error_msg = None
         df_result = None
         
         while attempt <= max_retries and not success:
             with st.spinner(f"Analyzing and generating query{' (Retry ' + str(attempt) + ')' if attempt > 0 else ''}..."):
                 try:
-                    sql_query, conversational_fallback = generate_sql(prompt, st.session_state.table_schemas, st.session_state.messages, error_msg)
+                    sql_query, conversational_fallback, explanation, confidence = generate_sql(prompt, st.session_state.table_schemas, st.session_state.messages, error_msg)
                 except Exception as e:
                     error_msg = f"API Error: {e}"
                     attempt += 1
@@ -347,8 +369,12 @@ if prompt := st.chat_input("Ask a question about your data..."):
                 success = True # Conversational fallback success
 
         if success and sql_query:
-            with st.expander("Generated SQL Query", expanded=True):
+            with st.expander("Query Details", expanded=True):
                 st.code(sql_query, language="sql")
+                if explanation:
+                    st.markdown(f"**Explanation:** {explanation}")
+                if confidence:
+                    st.markdown(f"**Confidence:** {confidence}%")
                 
             data_str_for_llm = df_result.head(100).to_string()
             st.dataframe(df_result, use_container_width=True)
@@ -435,6 +461,8 @@ if prompt := st.chat_input("Ask a question about your data..."):
                         "role": "assistant", 
                         "content": final_summary_text,
                         "sql": sql_query,
+                        "explanation": explanation,
+                        "confidence": confidence,
                         "data": df_result,
                         "chart_type": final_chart_type,
                         "graph_sql": final_graph_sql,
