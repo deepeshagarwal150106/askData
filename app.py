@@ -246,11 +246,12 @@ def generate_summary(user_prompt, data_str, history, schemas_dict, error_msg=Non
     Database Schemas for Graph Query:
     {schema_text}
     IMPORTANT FOR GRAPH SQL: [
+        llm should see the sample rows and then try to understand how to fetch only the required information from the data like only fetch 23 as int from "$123" and how to get data as date type if date is in different formats like mm/yy or mm/dd/yyyy or any.
         All columns you refer to in your SELECT clause MUST either exist in the provided schemas or be explicitly computed (e.g., using `COUNT(*) AS number_of_users`). Do NOT hallucinate columns that don't exist.,
         see the schema text for all tables and see how the data is stored in each colmn and how the data is related to each other. also handle things like converting "$123" to 123 and "1,234" to 1234 and "12.34%" to 0.1234 and "2022-01-01" to a date.,
         If numeric columns contain symbols like '$' or ',', clean using REGEXP_REPLACE.,
         If numeric values are stored as strings, CAST them properly.,
-        If date columns are strings, convert using CAST or STRPTIME before using EXTRACT.
+        If date columns are strings, convert using CAST or STRPTIME before using EXTRACT.,
     ]
 
     A graph is sensible to show ONLY if:
