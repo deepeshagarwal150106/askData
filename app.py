@@ -8,6 +8,7 @@ import time
 from dotenv import load_dotenv
 import plotly.express as px
 from cleaner import clean_dataframe
+from streamlit_mic_recorder import speech_to_text
 
 # Load env variables if any
 load_dotenv()
@@ -329,7 +330,22 @@ def generate_summary(user_prompt, data_str, history, schemas_dict, error_msg=Non
     return text, chart_type, graph_sql, x_axis, y_axis, color_col
 
 # --- USER INPUT ---
-if prompt := st.chat_input("Ask a question about your data..."):
+st.markdown("---")
+st.write("🎙️ **Voice Input:**")
+stt_text = speech_to_text(
+    language='en',
+    start_prompt="Click to Speak",
+    stop_prompt="Click to Stop",
+    just_once=True,
+    key='STT'
+)
+
+prompt = st.chat_input("Ask a question about your data...")
+
+if stt_text:
+    prompt = stt_text
+
+if prompt:
     # Render user prompt
     with st.chat_message("user"):
         st.markdown(prompt)
