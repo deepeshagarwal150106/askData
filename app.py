@@ -55,7 +55,7 @@ with st.sidebar:
     
     st.markdown("---")
     st.header("📄 Upload Data")
-    uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
+    uploaded_files = st.file_uploader("Upload CSVs", type=["csv"], accept_multiple_files=True)
 
 # --- SESSION STATE INITIALIZATION ---
 if "messages" not in st.session_state:
@@ -64,8 +64,11 @@ if "messages" not in st.session_state:
 if "duckdb_conn" not in st.session_state:
     st.session_state.duckdb_conn = duckdb.connect(database=':memory:', read_only=False)
 
-if "table_schema" not in st.session_state:
-    st.session_state.table_schema = None
+if "table_schemas" not in st.session_state:
+    st.session_state.table_schemas = {}
+    
+if "data_loaded_files" not in st.session_state:
+    st.session_state.data_loaded_files = set()
 
 def get_schema(conn, table_name):
     # Retrieve schema string for LLM and a few sample rows
@@ -86,30 +89,40 @@ def get_schema(conn, table_name):
         return str(e)
 
 # --- DATA LOADING ---
-if uploaded_file:
-    # Read the file only once into duckdb
-    if "data_loaded" not in st.session_state or st.session_state.data_loaded != uploaded_file.name:
-        try:
-            df = pd.read_csv(uploaded_file)
-            # Register in DuckDB
-            # We enforce a standard table name so LLM knows what to query
-            table_name = "data_table"
-            st.session_state.duckdb_conn.register(table_name, df)
+if uploaded_files:
+    for uploaded_file in uploaded_files:
+        if uploaded_file.name not in st.session_state.data_loaded_files:
+            try:
+                df = pd.read_csv(uploaded_file)
+                # Register in DuckDB
+                # Clean table name
+                table_name = re.sub(r'[^a-zA-Z0-9_]', '_', uploaded_file.name.split('.')[0]).lower()
+                
+                # Make unique if needed
+                original_table_name = table_name
+                counter = 1
+                while table_name in st.session_state.table_schemas:
+                    table_name = f"{original_table_name}_{counter}"
+                    counter += 1
+                
+                st.session_state.duckdb_conn.register(table_name, df)
+                
+                # Extract schema
+                st.session_state.table_schemas[table_name] = get_schema(st.session_state.duckdb_conn, table_name)
+                st.session_state.data_loaded_files.add(uploaded_file.name)
+                st.session_state.messages.append({"role": "assistant", "content": f"✅ Successfully loaded `{uploaded_file.name}` as table `{table_name}`. Use the chat to ask questions about your data!"})
+            except Exception as e:
+                st.error(f"Error loading {uploaded_file.name}: {e}")
+                st.stop()
             
-            # Extract schema
-            st.session_state.table_schema = get_schema(st.session_state.duckdb_conn, table_name)
-            st.session_state.data_loaded = uploaded_file.name
-            st.session_state.messages.append({"role": "assistant", "content": f"✅ Successfully loaded `{uploaded_file.name}`. Use the chat to ask questions about your data!"})
-        except Exception as e:
-            st.error(f"Error loading CSV: {e}")
-            st.stop()
-            
-    st.sidebar.success(f"Loaded {uploaded_file.name}")
-    st.sidebar.markdown("**Schema:**")
-    st.sidebar.text(st.session_state.table_schema)
+    st.sidebar.success(f"Loaded {len(st.session_state.data_loaded_files)} file(s)")
+    st.sidebar.markdown("**Schemas:**")
+    for t_name, t_schema in st.session_state.table_schemas.items():
+        with st.sidebar.expander(f"Table: {t_name}"):
+            st.text(t_schema)
 
 else:
-    st.info("👈 Please upload a CSV file from the sidebar to get started.")
+    st.info("👈 Please upload CSV file(s) from the sidebar to get started.")
     st.stop()
 
 # --- CHAT DISPLAY ---
@@ -132,18 +145,28 @@ for message in st.session_state.messages:
                 st.scatter_chart(data)
 
 # --- LLM FUNCTIONS ---
-def generate_sql(user_prompt, schema, history):
+def generate_sql(user_prompt, schemas_dict, history, error_msg=None):
+    schema_text = ""
+    for t_name, t_schema in schemas_dict.items():
+        schema_text += f"Table: {t_name}\n{t_schema}\n\n"
+
     system_instruction = f"""
     You are an expert DuckDB Data Analyst. 
-    The user has uploaded a table named 'data_table' with the following schema:
-    {schema}
+    The user has uploaded the following tables with their schemas:
+    
+    {schema_text}
     
     Your goal is to generate a DuckDB SQL query to answer the user's question.
+    Please carefully infer primary and foreign keys across these tables by analyzing column names (e.g., matching 'id' to 'user_id' or 'customer_id') and use them to construct correct JOIN operations when the question requires data from multiple tables.
+    
     Only return the SQL query inside a ```sql ... ``` block. DO NOT add any other explanation.
     If the question is conversational and doesn't require querying the database, reply with conversational text (no SQL block).
-    make meaningfull alias for the column names that are derived from some operations.
+    Make meaningful alias for the column names that are derived from some operations.
     """
     
+    if error_msg:
+        system_instruction += f"\n\nWARNING: Your previous query failed with error: {error_msg}\nPlease fix the SQL query so it works correctly."
+        
     # Format history for Groq
     messages_payload = [{"role": "system", "content": system_instruction}]
     for m in history:
@@ -213,36 +236,57 @@ if prompt := st.chat_input("Ask a question about your data..."):
     # Process
     st.session_state.messages.append({"role": "user", "content": prompt})
     
-    with st.spinner("Analyzing and generating query..."):
-        sql_query, conversational_fallback = generate_sql(prompt, st.session_state.table_schema, st.session_state.messages)
+    with st.chat_message("assistant"):
+        max_retries = 3
+        attempt = 0
+        success = False
+        sql_query = None
+        conversational_fallback = None
+        error_msg = None
+        df_result = None
         
-    if sql_query:
-        with st.chat_message("assistant"):
-            with st.expander("Generated SQL Query", expanded=True):
-                st.code(sql_query, language="sql")
-                
-            with st.spinner("Executing query..."):
+        while attempt <= max_retries and not success:
+            with st.spinner(f"Analyzing and generating query{' (Retry ' + str(attempt) + ')' if attempt > 0 else ''}..."):
                 try:
-                    df_result = st.session_state.duckdb_conn.execute(sql_query).df()
-                    # Limit output passed to LLM to avoid token limits
-                    data_str_for_llm = df_result.head(100).to_string()
+                    sql_query, conversational_fallback = generate_sql(prompt, st.session_state.table_schemas, st.session_state.messages, error_msg)
+                except Exception as e:
+                    error_msg = f"API Error: {e}"
+                    st.error(f"Attempt {attempt + 1} failed: {error_msg}")
+                    attempt += 1
+                    continue
+                
+            if sql_query:
+                with st.expander(f"Generated SQL Query{' (Retry ' + str(attempt) + ')' if attempt > 0 else ''}", expanded=(attempt==0)):
+                    st.code(sql_query, language="sql")
                     
-                    st.dataframe(df_result, use_container_width=True)
+                with st.spinner("Executing query..."):
+                    try:
+                        df_result = st.session_state.duckdb_conn.execute(sql_query).df()
+                        success = True
+                    except Exception as e:
+                        error_msg = f"SQL Execution Error: {e}"
+                        st.error(f"Attempt {attempt + 1} failed: {error_msg}")
+                        attempt += 1
+            else:
+                success = True # Conversational fallback success
+
+        if success and sql_query:
+            data_str_for_llm = df_result.head(100).to_string()
+            st.dataframe(df_result, use_container_width=True)
+            
+            with st.spinner("Generating summary..."):
+                try:
+                    summary_text, chart_type = generate_summary(prompt, data_str_for_llm, st.session_state.messages)
+                    st.markdown(summary_text)
                     
-                    with st.spinner("Generating summary..."):
-                        summary_text, chart_type = generate_summary(prompt, data_str_for_llm, st.session_state.messages)
-                        
-                        st.markdown(summary_text)
-                        
-                        if chart_type:
-                            if chart_type == "bar":
-                                st.bar_chart(df_result)
-                            elif chart_type == "line":
-                                st.line_chart(df_result)
-                            elif chart_type == "scatter":
-                                st.scatter_chart(df_result)
-                                
-                    # Save to state
+                    if chart_type:
+                        if chart_type == "bar":
+                            st.bar_chart(df_result)
+                        elif chart_type == "line":
+                            st.line_chart(df_result)
+                        elif chart_type == "scatter":
+                            st.scatter_chart(df_result)
+                            
                     st.session_state.messages.append({
                         "role": "assistant", 
                         "content": summary_text,
@@ -250,13 +294,13 @@ if prompt := st.chat_input("Ask a question about your data..."):
                         "data": df_result,
                         "chart_type": chart_type
                     })
-                    
                 except Exception as e:
-                    error_msg = f"Error executing query: {e}"
-                    st.error(error_msg)
-                    st.session_state.messages.append({"role": "assistant", "content": error_msg})
-    else:
-        # It was a conversational response
-        with st.chat_message("assistant"):
+                    st.error(f"Error generating summary: {e}")
+                    st.session_state.messages.append({"role": "assistant", "content": f"Query succeeded, but error generating summary: {e}"})
+        elif success and not sql_query:
             st.markdown(conversational_fallback)
             st.session_state.messages.append({"role": "assistant", "content": conversational_fallback})
+        elif not success:
+            final_error = f"Failed to generate correct SQL after {max_retries} retries. Last error:\n{error_msg}"
+            st.error(final_error)
+            st.session_state.messages.append({"role": "assistant", "content": final_error})
