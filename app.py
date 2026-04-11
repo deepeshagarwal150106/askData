@@ -251,26 +251,24 @@ if prompt := st.chat_input("Ask a question about your data..."):
                     sql_query, conversational_fallback = generate_sql(prompt, st.session_state.table_schemas, st.session_state.messages, error_msg)
                 except Exception as e:
                     error_msg = f"API Error: {e}"
-                    st.error(f"Attempt {attempt + 1} failed: {error_msg}")
                     attempt += 1
                     continue
                 
             if sql_query:
-                with st.expander(f"Generated SQL Query{' (Retry ' + str(attempt) + ')' if attempt > 0 else ''}", expanded=(attempt==0)):
-                    st.code(sql_query, language="sql")
-                    
                 with st.spinner("Executing query..."):
                     try:
                         df_result = st.session_state.duckdb_conn.execute(sql_query).df()
                         success = True
                     except Exception as e:
                         error_msg = f"SQL Execution Error: {e}"
-                        st.error(f"Attempt {attempt + 1} failed: {error_msg}")
                         attempt += 1
             else:
                 success = True # Conversational fallback success
 
         if success and sql_query:
+            with st.expander("Generated SQL Query", expanded=True):
+                st.code(sql_query, language="sql")
+                
             data_str_for_llm = df_result.head(100).to_string()
             st.dataframe(df_result, use_container_width=True)
             
