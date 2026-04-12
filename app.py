@@ -996,7 +996,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # Nav pills (only show navigable ones)
-nav_cols = st.columns([1, 1, 1, 4])
+nav_cols = st.columns([1, 1, 1])
 with nav_cols[0]:
     if has_pending:
         st.button("🧹 Clean Data", key="nav_clean", width='stretch',
@@ -1121,7 +1121,7 @@ if st.session_state.active_page == "clean":
 You are a strict code generator. Generate a python function named `custom_clean` that takes a pandas DataFrame `df` as input and returns the cleaned DataFrame.
 Apply the user's instructions to clean the data.
 User Instructions: "{user_instruction}"
-if user says do as you like then do as you think is best for the data and you can use your insights:{st.session_state.cleaning_questions.get(filename, '')}
+if user says do as you like then do as you think is best for the data and you can use your insights:{st.session_state.cleaning_questions.get(filename, '')}. only use this if the user wants you to do like you suggested.
 
 Data Schema & Sample:
 {schema_for_cleaning}
