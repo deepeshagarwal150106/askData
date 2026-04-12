@@ -7,7 +7,7 @@ def render_header() -> None:
 <div class="app-header">
   <div class="app-logo">⚡</div>
   <div>
-    <div class="app-title">DataPulse AI</div>
+    <div class="app-title">Ask With Data AI</div>
     <div class="app-sub">Natural language analytics · Powered by Groq</div>
   </div>
 </div>

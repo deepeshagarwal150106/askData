@@ -11,7 +11,7 @@ def render_empty_state() -> None:
   <div class="icon">📂</div>
   <h3>No data loaded yet</h3>
   <p>Upload one or more CSV or Excel (.xlsx) files from the sidebar to get started.
-     DataPulse will auto-clean, analyze, and let you chat with your data.</p>
+     Ask With Data will auto-clean, analyze, and let you chat with your data.</p>
 </div>
 """, unsafe_allow_html=True)
 

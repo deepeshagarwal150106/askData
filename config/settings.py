@@ -6,7 +6,7 @@ load_dotenv()
 
 # ── Page config ──────────────────────────────────────────────────────────────
 PAGE_CONFIG = dict(
-    page_title="DataPulse AI",
+    page_title="Ask With Data AI",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",

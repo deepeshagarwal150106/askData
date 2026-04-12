@@ -1,4 +1,4 @@
-"""Clean Data page for DataPulse AI.
+"""Clean Data page for Ask With Data AI.
 
 Handles the LLM-driven data cleaning workflow:
   1. Preview each pending file

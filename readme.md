@@ -5,7 +5,7 @@ ________________________________________________________________________________
 
 ## Overview
 
-DataPulse AI is a Streamlit web app that lets anyone explore tabular data using plain English — no SQL or coding required. Users upload a CSV or Excel file, receive AI-generated data cleaning suggestions, and then ask questions about their data through a chat interface that supports both typing and voice. It solves the barrier between non-technical users and their data by automating query writing, chart generation, and data cleaning through an LLM. The intended users are data analysts, product managers, researchers, and students who need fast insights from spreadsheets without writing code.
+Ask With Data AI is a Streamlit web app that lets anyone explore tabular data using plain English — no SQL or coding required. Users upload a CSV or Excel file, receive AI-generated data cleaning suggestions, and then ask questions about their data through a chat interface that supports both typing and voice. It solves the barrier between non-technical users and their data by automating query writing, chart generation, and data cleaning through an LLM. The intended users are data analysts, product managers, researchers, and students who need fast insights from spreadsheets without writing code.
 
 ____________________________________________________________________________________________________
 
@@ -39,6 +39,13 @@ ________________________________________________________________________________
 
 - Python 3.13
 - A Groq API key — get one free at [console.groq.com](https://console.groq.com/)
+
+### public repo
+https://github.com/deepeshagarwal150106/askData
+
+
+### public url
+https://askdata-6flrrbbzjcvrv3glr3lt3q.streamlit.app/
 
 ### Step 1 — Clone the repository
 
@@ -234,17 +241,24 @@ ________________________________________________________________________________
 - Multi-turn chart editing ("make it a line chart", "colour by region")
 - Docker image for one-command deployment
 - Multi-sheet Excel support
+- authorisation
 
 ____________________________________________________________________________________________________
 
 ## Project Structure
 
 ```
-datapulse-ai/
-├── app.py              # Main Streamlit application
+Ask With Data-ai/
+├── app.py              # Application entrypoint
+├── components/         # Reusable UI elements (sidebar, navigation)
+├── config/             # App settings & LLM configuration
+├── services/           # DB and LLM integration logic
+├── styles/             # Global CSS definitions
+├── utils/              # Helper utilities (session state, charts)
+├── views/              # Main page views (clean_data, insights, chat)
 ├── cleaner.py          # Post-exec DataFrame sanitiser
 ├── requirements.txt    # Python dependencies
-├── .env.example        # Environment variable template (no real credentials)
+├── .env.example        # Environment variable template
 ├── LICENSE             # Apache 2.0
 └── README.md           # This file
 ```

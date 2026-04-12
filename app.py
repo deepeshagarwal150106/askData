@@ -1,4 +1,4 @@
-"""DataPulse AI — Application Entrypoint.
+"""Ask With Data AI — Application Entrypoint.
 
 This file is intentionally slim.  It wires together all modules:
 

@@ -1,4 +1,4 @@
-"""Ask AI (Chat) page for DataPulse AI.
+"""Ask AI (Chat) page for Ask With Data AI.
 
 Handles the full conversational query flow:
   - Renders chat history with SQL details, data frames, and charts

@@ -1,4 +1,4 @@
-"""LLM interaction functions for DataPulse AI.
+"""LLM interaction functions for Ask With Data AI.
 
 All functions accept an explicit `client` (Groq) and `model_name` (str) so they
 are fully self-contained and testable in isolation.

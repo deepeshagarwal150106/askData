@@ -1,4 +1,4 @@
-"""Insights page for DataPulse AI.
+"""Insights page for Ask With Data AI.
 
 Generates an executive summary, key analytical findings with SQL-backed charts,
 and suggested follow-up questions based on the loaded tables.

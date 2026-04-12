@@ -1,4 +1,4 @@
-"""Sidebar component for DataPulse AI.
+"""Sidebar component for Ask With Data AI.
 
 Renders the full sidebar (brand, config status, model selector, file uploader,
 loaded tables with schema pills and sample data, footer) and returns the values
@@ -24,7 +24,7 @@ def render_sidebar() -> tuple:
     <div class="sidebar-brand">
       <div class="sidebar-brand-icon">⚡</div>
       <div>
-        <div class="sidebar-brand-text">DataPulse AI</div>
+        <div class="sidebar-brand-text">Ask With Data AI</div>
         <div class="sidebar-brand-sub">Intelligent Data Analytics</div>
       </div>
     </div>
