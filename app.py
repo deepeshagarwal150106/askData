@@ -20,9 +20,9 @@ from components.header import render_header
 from components.sidebar import render_sidebar
 from components.navigation import render_navigation
 from components.empty_state import render_empty_state
-from pages.clean_data import render_clean_page
-from pages.insights import render_insights_page
-from pages.chat import render_chat_page
+from views.clean_data import render_clean_page
+from views.insights import render_insights_page
+from views.chat import render_chat_page
 
 # ── Page config (must be the very first Streamlit call) ───────────────────────
 st.set_page_config(**PAGE_CONFIG)
