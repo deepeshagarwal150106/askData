@@ -263,6 +263,10 @@ Ask With Data-ai/
 └── README.md           # This file
 ```
 
+
+### flow
+![alt text](assets/imgs/image.png)
+
 ____________________________________________________________________________________________________
 
 ## License
