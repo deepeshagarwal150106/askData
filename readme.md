@@ -90,6 +90,30 @@ The app opens automatically at `http://localhost:8501`.
 
 ____________________________________________________________________________________________________
 
+
+### how to test the application
+
+## here test_data.csv is given in assests/docs/test_data.csv for testers to test. although you can use any csv or excel file.
+
+1. upload test_data.csv file
+   then it will ask for cleaning instructions and also give suggestions for cleaning
+2. provide prompt to drop all null values and convert all columns into sensible data type like data string into     datetime
+
+4. click on apply and load
+
+2. go to insights page
+3. click on any insight
+5. go to chat (ask ai) page
+6. ask any question
+7. example questions are 
+   - How does discount usage vary across regions and categories?
+   - Which sub‑categories have the highest profit margins? 
+
+some insights are also generated automatically after loading the data like:
+![alt text](assets/imgs/img1.png)
+![alt text](assets/imgs/img2.png)
+![alt text](assets/imgs/img3.png)
+
 ## Usage Examples
 
 ### Example 1 — Uploading and cleaning a sales file
