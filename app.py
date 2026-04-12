@@ -381,18 +381,19 @@ setTimeout(() => {
 # ── SIDEBAR ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### ⚙️ Configuration")
-    api_key_input = st.text_input("Groq API Key", type="password", value=os.environ.get("GROQ_API_KEY", ""), placeholder="gsk_...")
+    api_key_input = os.environ.get("GROQ_API_KEY")
 
     if api_key_input:
         client = Groq(api_key=api_key_input)
+        st.success("API Key loaded from environment.")
     else:
-        st.warning("Enter your Groq API Key to begin.")
-        st.markdown("[Get a free key →](https://console.groq.com/keys)")
+        st.error("GROQ_API_KEY not found in environment variables.")
+        st.info("Please set the key in your system or .env file.")
         st.stop()
 
     model_name = st.selectbox("Model", [
-        "llama-3.3-70b-versatile",
         "openai/gpt-oss-120b",
+        "llama-3.3-70b-versatile",
         "llama-3.1-8b-instant",
         "gemma2-9b-it",
         "mixtral-8x7b-32768"
