@@ -72,7 +72,7 @@ def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
             # We consider it numeric if a substantial amount (>=40%) are valid numbers.
             # Invalid ones become NaN automatically by pd.to_numeric(errors='coerce')
-            if numeric_series.notna().sum() >= len(col_dropna) * 0.4:
+            if numeric_series.notna().sum() >= len(col_dropna) * 0.5:
                 df_clean[col] = numeric_series
 
     # 🔹 AUTOMATIC TYPE INFERENCE

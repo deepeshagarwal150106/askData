@@ -812,7 +812,7 @@ with st.sidebar:
     st.markdown("""
     <div class="sidebar-section-label"><span class="dot dot-cyan"></span> DATA SOURCE</div>
     """, unsafe_allow_html=True)
-    uploaded_files = st.file_uploader("Drop CSV files here", type=["csv"], accept_multiple_files=True, label_visibility="collapsed")
+    uploaded_files = st.file_uploader("Drop CSV or Excel files here", type=["csv", "xlsx"], accept_multiple_files=True, label_visibility="collapsed")
 
     # ── Loaded tables section ──
     if "data_loaded_files" in st.session_state and st.session_state.data_loaded_files:
@@ -960,7 +960,10 @@ if uploaded_files:
     for uploaded_file in uploaded_files:
         if uploaded_file.name not in st.session_state.data_loaded_files and uploaded_file.name not in st.session_state.pending_files:
             try:
-                df = pd.read_csv(uploaded_file)
+                if uploaded_file.name.lower().endswith(".xlsx"):
+                    df = pd.read_excel(uploaded_file)
+                else:
+                    df = pd.read_csv(uploaded_file)
                 st.session_state.pending_files[uploaded_file.name] = df
                 st.session_state.active_page = "clean"
             except Exception as e:
@@ -1021,7 +1024,7 @@ if not has_data and not has_pending:
     <div class="empty-state">
       <div class="icon">📂</div>
       <h3>No data loaded yet</h3>
-      <p>Upload one or more CSV files from the sidebar to get started. DataPulse will auto-clean, analyze, and let you chat with your data.</p>
+      <p>Upload one or more CSV or Excel (.xlsx) files from the sidebar to get started. DataPulse will auto-clean, analyze, and let you chat with your data.</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1451,6 +1454,13 @@ elif st.session_state.active_page == "chat":
         schema_text = "".join(f"Table: {t}\n{s}\n\n" for t, s in schemas_dict.items())
         system_instruction = f"""
     You are an AI Data Assistant. Provide a concise natural language summary of query results.
+    important: [only give answers to relavant questions related to data provided, dataset issues and data cleaning that was done. if user asked anything else that is irrelevant to the data provided, politely refuse the user to answer and dont execute anyting.,
+        if the question is not related to context provided simply refuse to answer.,
+        boundaries: llm should not answer any question that is biassed or reveals any private information. also it should not give violent response.
+        eg: user:"what is a cow" assistant:"I cannot answer this question as it is not related to the data provided.",
+        eg: user:"what is the capital of France" assistant:"I cannot answer this question as it is not related to the data provided.",
+        eg: user:"how to make cake" assistant:"I cannot answer this question as it is not related to the data provided.",
+    ]
 
     Additionally evaluate whether a chart makes sense. If it does, write a SEPARATE DuckDB SQL
     query for visualization and choose the best chart type.
