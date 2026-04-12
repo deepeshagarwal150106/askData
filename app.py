@@ -317,17 +317,6 @@ html, body, [class*="css"] {
 /* ── Suggested question chips ── */
 .q-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 0.8rem; }
 
-/* ── Voice input area ── */
-.voice-bar {
-    display: flex; align-items: center; gap: 10px;
-    padding: 0.6rem 1rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    margin-bottom: 0.8rem;
-}
-.voice-label { font-size: 0.82rem; color: var(--muted); font-weight: 500; }
-
 /* ── Divider ── */
 hr { border-color: var(--border) !important; margin: 1.2rem 0 !important; }
 
@@ -379,6 +368,14 @@ st.markdown("""
     <div class="app-sub">Natural language analytics · Powered by Groq</div>
   </div>
 </div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<script>
+setTimeout(() => {
+    window.dispatchEvent(new Event('resize'));
+}, 50);
+</script>
 """, unsafe_allow_html=True)
 
 # ── SIDEBAR ──────────────────────────────────────────────────────────────────
@@ -904,6 +901,7 @@ elif st.session_state.active_page == "insights":
 # PAGE: ASK AI (CHAT)
 # ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state.active_page == "chat":
+    st.markdown("<div style='display:none'>force-repaint</div>", unsafe_allow_html=True)
 
     # ── LLM functions ─────────────────────────────────────────────────────────
     def generate_sql(user_prompt, schemas_dict, history, error_msg=None):
@@ -1046,9 +1044,10 @@ elif st.session_state.active_page == "chat":
                         render_chart(chart_type, graph_df, None, None, color_arg)
                 except Exception:
                     pass  # Silently skip broken chart replays
+    # else:
+    #     st.write("No messages yet.")
 
     # ── Voice input ───────────────────────────────────────────────────────────
-    st.markdown('<div class="voice-bar"><span class="voice-label">🎙️ Voice input</span>', unsafe_allow_html=True)
     stt_text = speech_to_text(
         language='en',
         start_prompt="Click to Speak",
@@ -1056,7 +1055,14 @@ elif st.session_state.active_page == "chat":
         just_once=True,
         key='STT'
     )
-    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown("""
+        <script>
+        setTimeout(() => {
+            window.dispatchEvent(new Event('resize'));
+        }, 50);
+        </script>
+        """, unsafe_allow_html=True)
     
     # ── Text input ────────────────────────────────────────────────────────────
     prompt = st.chat_input("Ask a question about your data…")
@@ -1198,4 +1204,6 @@ elif st.session_state.active_page == "chat":
                 </div>
                 """, unsafe_allow_html=True)
                 st.session_state.messages.append({"role": "assistant", "content": friendly_msg})
+        st.rerun()
+        st.markdown("<div style='display:none'>force-repaint</div>", unsafe_allow_html=True)
 
