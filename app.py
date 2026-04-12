@@ -116,20 +116,403 @@ html, body, [class*="css"] {
 
 /* ── Sidebar ── */
 [data-testid="stSidebar"] {
-    background: var(--surface) !important;
-    border-right: 1px solid var(--border) !important;
+    background: linear-gradient(180deg, #0B0F1E 0%, #0E1220 40%, #0A0E1B 100%) !important;
+    border-right: 1px solid transparent !important;
+    background-clip: padding-box !important;
+    position: relative !important;
+}
+[data-testid="stSidebar"]::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 1px;
+    background: linear-gradient(180deg, var(--violet) 0%, var(--cyan) 50%, var(--violet) 100%);
+    opacity: 0.35;
 }
 [data-testid="stSidebar"] * { color: var(--text) !important; }
 [data-testid="stSidebar"] .stTextInput input {
     background: var(--surface2) !important;
     border: 1px solid var(--border) !important;
-    border-radius: 8px !important;
+    border-radius: 10px !important;
     color: var(--text) !important;
+    transition: all 0.2s ease !important;
+}
+[data-testid="stSidebar"] .stTextInput input:focus {
+    border-color: var(--violet) !important;
+    box-shadow: 0 0 0 3px rgba(124,58,237,0.15) !important;
 }
 [data-testid="stSidebar"] .stSelectbox > div > div {
     background: var(--surface2) !important;
     border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    transition: all 0.2s ease !important;
+}
+[data-testid="stSidebar"] .stSelectbox > div > div:hover {
+    border-color: rgba(124,58,237,0.4) !important;
+}
+
+/* ── Sidebar custom components ── */
+.sidebar-brand {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0.3rem 0.5rem 1rem;
+    margin-bottom: 0.2rem;
+}
+.sidebar-brand-icon {
+    width: 42px; height: 42px;
+    background: linear-gradient(135deg, var(--violet), var(--cyan));
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 0 20px rgba(124,58,237,0.4), 0 0 40px rgba(6,182,212,0.15);
+    flex-shrink: 0;
+    animation: pulse-glow 3s ease-in-out infinite;
+}
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 20px rgba(124,58,237,0.4), 0 0 40px rgba(6,182,212,0.15); }
+    50%      { box-shadow: 0 0 28px rgba(124,58,237,0.6), 0 0 50px rgba(6,182,212,0.25); }
+}
+.sidebar-brand-text {
+    font-size: 1.15rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--violet-lt), var(--cyan-lt));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.3px;
+    line-height: 1.2;
+}
+.sidebar-brand-sub {
+    font-size: 0.68rem;
+    color: var(--muted) !important;
+    font-weight: 400;
+    letter-spacing: 0.3px;
+    margin-top: 1px;
+}
+.sidebar-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 0.8rem 0;
+    position: relative;
+}
+.sidebar-divider.glow {
+    background: linear-gradient(90deg, transparent, rgba(124,58,237,0.3), rgba(6,182,212,0.3), transparent);
+}
+.sidebar-section {
+    background: rgba(14,18,32,0.6);
+    border: 1px solid rgba(31,40,71,0.5);
+    border-radius: 14px;
+    padding: 1rem 1rem;
+    margin-bottom: 0.8rem;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: border-color 0.25s ease;
+}
+.sidebar-section:hover {
+    border-color: rgba(124,58,237,0.25);
+}
+.sidebar-section-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--muted) !important;
+    margin-bottom: 0.7rem;
+    display: flex; align-items: center; gap: 6px;
+}
+.sidebar-section-label .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.sidebar-section-label .dot-violet { background: var(--violet); box-shadow: 0 0 6px var(--violet); }
+.sidebar-section-label .dot-cyan   { background: var(--cyan);   box-shadow: 0 0 6px var(--cyan); }
+.sidebar-section-label .dot-emerald { background: var(--emerald); box-shadow: 0 0 6px var(--emerald); }
+
+.sidebar-status {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 0.6rem;
+}
+.sidebar-status.success {
+    background: rgba(16,185,129,0.1);
+    border: 1px solid rgba(16,185,129,0.25);
+    color: #34D399 !important;
+}
+.sidebar-status.success .status-dot {
+    width: 8px; height: 8px;
+    background: var(--emerald);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--emerald);
+    animation: status-pulse 2s ease-in-out infinite;
+}
+@keyframes status-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.6; transform: scale(0.85); }
+}
+.sidebar-status.error {
+    background: rgba(244,63,94,0.1);
+    border: 1px solid rgba(244,63,94,0.25);
+    color: #F87171 !important;
+}
+
+/* ── Sidebar table card ── */
+.sidebar-table-card {
+    background: rgba(14,18,32,0.7);
+    border: 1px solid rgba(31,40,71,0.5);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    transition: all 0.25s ease;
+}
+.sidebar-table-card:hover {
+    border-color: rgba(124,58,237,0.35);
+    background: rgba(124,58,237,0.04);
+}
+.sidebar-table-header {
+    display: flex; align-items: center; gap: 10px;
+}
+.sidebar-table-header .tbl-icon {
+    width: 32px; height: 32px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, rgba(124,58,237,0.25), rgba(6,182,212,0.25));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    box-shadow: 0 0 12px rgba(124,58,237,0.15);
+}
+.sidebar-table-header .tbl-info {
+    flex: 1; min-width: 0;
+}
+.sidebar-table-header .tbl-name {
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-family: 'Space Mono', monospace;
+    color: var(--text) !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.3;
+}
+.sidebar-table-header .tbl-meta {
+    font-size: 0.65rem;
+    color: var(--muted) !important;
+    font-weight: 500;
+    margin-top: 1px;
+    display: flex; align-items: center; gap: 6px;
+}
+.sidebar-table-header .tbl-meta .meta-dot {
+    width: 3px; height: 3px;
+    background: var(--muted);
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* ── Schema display ── */
+.schema-columns-grid {
+    display: flex; flex-wrap: wrap; gap: 5px;
+    padding: 8px 0 4px;
+}
+.schema-col-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.68rem;
+    font-weight: 500;
+    background: rgba(22,27,46,0.9);
+    border: 1px solid rgba(31,40,71,0.5);
+    transition: all 0.15s ease;
+    line-height: 1.3;
+}
+.schema-col-pill:hover {
+    border-color: rgba(124,58,237,0.3);
+    background: rgba(124,58,237,0.06);
+}
+.schema-col-pill .col-name {
+    color: var(--text) !important;
+    font-family: 'Space Mono', monospace;
+    font-weight: 600;
+    font-size: 0.66rem;
+}
+.schema-col-pill .col-type {
+    color: var(--cyan-lt) !important;
+    font-size: 0.58rem;
+    font-weight: 600;
+    padding: 1px 5px;
+    background: rgba(6,182,212,0.12);
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+.schema-col-pill .col-type.type-int     { color: var(--violet-lt) !important; background: rgba(124,58,237,0.12); }
+.schema-col-pill .col-type.type-float   { color: #FCD34D !important; background: rgba(245,158,11,0.12); }
+.schema-col-pill .col-type.type-date    { color: #34D399 !important; background: rgba(16,185,129,0.12); }
+.schema-col-pill .col-type.type-varchar { color: var(--cyan-lt) !important; background: rgba(6,182,212,0.12); }
+
+/* ── Schema sample table ── */
+.schema-sample-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted) !important;
+    margin: 8px 0 5px;
+    display: flex; align-items: center; gap: 5px;
+}
+.schema-sample-label::after {
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(90deg, var(--border), transparent);
+}
+.schema-sample-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.63rem;
+    font-family: 'Space Mono', monospace;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(31,40,71,0.4);
+}
+.schema-sample-table thead th {
+    background: rgba(124,58,237,0.12);
+    color: var(--violet-lt) !important;
+    padding: 5px 6px;
+    text-align: left;
+    font-weight: 700;
+    font-size: 0.6rem;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    border-bottom: 1px solid rgba(124,58,237,0.2);
+}
+.schema-sample-table tbody td {
+    padding: 4px 6px;
+    color: var(--text) !important;
+    border-bottom: 1px solid rgba(31,40,71,0.25);
+    white-space: nowrap;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.schema-sample-table tbody tr:nth-child(even) {
+    background: rgba(14,18,32,0.5);
+}
+.schema-sample-table tbody tr:nth-child(odd) {
+    background: rgba(22,27,46,0.4);
+}
+.schema-sample-table tbody tr:hover {
+    background: rgba(124,58,237,0.06);
+}
+.schema-sample-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* ── Sidebar footer ── */
+.sidebar-footer {
+    padding: 0.6rem 0.5rem 0.4rem;
+    text-align: center;
+    margin-top: 0.5rem;
+}
+.sidebar-footer-text {
+    font-size: 0.65rem;
+    color: var(--muted) !important;
+    letter-spacing: 0.4px;
+}
+.sidebar-footer-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, rgba(124,58,237,0.15), rgba(6,182,212,0.15));
+    border: 1px solid rgba(124,58,237,0.2);
+    color: var(--violet-lt) !important;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-top: 4px;
+}
+
+/* ── Sidebar file uploader override ── */
+[data-testid="stSidebar"] [data-testid="stFileUploader"] {
+    background: rgba(22,27,46,0.5) !important;
+    border: 1.5px dashed rgba(124,58,237,0.3) !important;
+    border-radius: 12px !important;
+    transition: all 0.25s ease !important;
+    padding: 12px !important;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploader"]:hover {
+    border-color: rgba(124,58,237,0.5) !important;
+    background: rgba(124,58,237,0.04) !important;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploader"] small {
+    color: var(--muted) !important;
+    font-size: 0.68rem !important;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploader"] button {
+    background: linear-gradient(135deg, var(--violet), #5B21B6) !important;
+    color: white !important;
+    border: none !important;
     border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 0.75rem !important;
+    padding: 5px 14px !important;
+    box-shadow: 0 2px 10px rgba(124,58,237,0.3) !important;
+    transition: all 0.2s ease !important;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploader"] button:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 16px rgba(124,58,237,0.45) !important;
+}
+
+/* ── Uploaded file chip in sidebar ── */
+[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] {
+    background: rgba(16,185,129,0.06) !important;
+    border: 1px solid rgba(16,185,129,0.2) !important;
+    border-radius: 10px !important;
+    padding: 6px 10px !important;
+    margin-top: 6px !important;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] small {
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.7rem !important;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] button {
+    background: rgba(244,63,94,0.15) !important;
+    color: #F87171 !important;
+    border: 1px solid rgba(244,63,94,0.2) !important;
+    box-shadow: none !important;
+    padding: 2px 6px !important;
+    font-size: 0.65rem !important;
+    border-radius: 6px !important;
+}
+
+/* ── Sidebar expander override ── */
+[data-testid="stSidebar"] .streamlit-expanderHeader {
+    background: rgba(22,27,46,0.6) !important;
+    border: 1px solid rgba(31,40,71,0.4) !important;
+    border-radius: 10px !important;
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+    padding: 7px 12px !important;
+    transition: all 0.2s ease !important;
+    color: var(--muted) !important;
+}
+[data-testid="stSidebar"] .streamlit-expanderHeader:hover {
+    border-color: rgba(124,58,237,0.35) !important;
+    color: var(--text) !important;
+}
+[data-testid="stSidebar"] .streamlit-expanderContent {
+    background: rgba(10,14,27,0.7) !important;
+    border: 1px solid rgba(31,40,71,0.3) !important;
+    border-top: none !important;
+    border-radius: 0 0 10px 10px !important;
+    padding: 8px 10px !important;
+    max-height: 350px !important;
+    overflow-y: auto !important;
+}
+
+/* ── Sidebar success/error alert override ── */
+[data-testid="stSidebar"] [data-testid="stAlert"] {
+    display: none !important;
 }
 
 /* ── Cards ── */
@@ -380,15 +763,39 @@ setTimeout(() => {
 
 # ── SIDEBAR ──────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### ⚙️ Configuration")
+    # ── Brand header ──
+    st.markdown("""
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon">⚡</div>
+      <div>
+        <div class="sidebar-brand-text">DataPulse AI</div>
+        <div class="sidebar-brand-sub">Intelligent Data Analytics</div>
+      </div>
+    </div>
+    <div class="sidebar-divider glow"></div>
+    """, unsafe_allow_html=True)
+
+    # ── Configuration section ──
+    st.markdown("""
+    <div class="sidebar-section-label"><span class="dot dot-violet"></span> CONFIGURATION</div>
+    """, unsafe_allow_html=True)
+
     api_key_input = os.environ.get("GROQ_API_KEY")
 
     if api_key_input:
         client = Groq(api_key=api_key_input)
-        st.success("API Key loaded from environment.")
+        st.markdown("""
+        <div class="sidebar-status success">
+          <div class="status-dot"></div>
+          <span>API Connected</span>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        st.error("GROQ_API_KEY not found in environment variables.")
-        st.info("Please set the key in your system or .env file.")
+        st.markdown("""
+        <div class="sidebar-status error">
+          <span>⚠ API key missing — set GROQ_API_KEY</span>
+        </div>
+        """, unsafe_allow_html=True)
         st.stop()
 
     model_name = st.selectbox("Model", [
@@ -397,18 +804,107 @@ with st.sidebar:
         "llama-3.1-8b-instant",
         "gemma2-9b-it",
         "mixtral-8x7b-32768"
-    ], index=0)
+    ], index=0, label_visibility="collapsed")
 
-    st.markdown("---")
-    st.markdown("### 📂 Upload Data")
-    uploaded_files = st.file_uploader("Drop CSV files here", type=["csv"], accept_multiple_files=True)
+    st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
 
+    # ── Upload section ──
+    st.markdown("""
+    <div class="sidebar-section-label"><span class="dot dot-cyan"></span> DATA SOURCE</div>
+    """, unsafe_allow_html=True)
+    uploaded_files = st.file_uploader("Drop CSV files here", type=["csv"], accept_multiple_files=True, label_visibility="collapsed")
+
+    # ── Loaded tables section ──
     if "data_loaded_files" in st.session_state and st.session_state.data_loaded_files:
-        st.markdown("---")
-        st.markdown(f"### 🗄️ Loaded Tables")
+        st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
+        n_tables = len(st.session_state.get("table_schemas", {}))
+        st.markdown(f"""
+        <div class="sidebar-section-label">
+          <span class="dot dot-emerald"></span> LOADED TABLES
+          <span style="margin-left:auto;font-size:0.58rem;padding:2px 7px;
+                        background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.25);
+                        border-radius:999px;color:#34D399;font-weight:700;">{n_tables}</span>
+        </div>
+        """, unsafe_allow_html=True)
         for t_name, t_schema in st.session_state.get("table_schemas", {}).items():
-            with st.expander(f"`{t_name}`"):
-                st.text(t_schema)
+            # Parse column info from schema
+            try:
+                schema_df = st.session_state.duckdb_conn.execute(f"DESCRIBE {t_name}").df()
+                col_count = len(schema_df)
+                row_count = st.session_state.duckdb_conn.execute(f"SELECT COUNT(*) FROM {t_name}").fetchone()[0]
+                sample_df = st.session_state.duckdb_conn.execute(f"SELECT * FROM {t_name} LIMIT 3").df()
+            except Exception:
+                col_count = 0
+                row_count = 0
+                schema_df = None
+                sample_df = None
+
+            # Build column pills HTML
+            col_pills_html = ""
+            if schema_df is not None:
+                for _, row in schema_df.iterrows():
+                    c_name = row['column_name']
+                    c_type = row['column_type']
+                    type_class = "type-varchar"
+                    if 'INT' in c_type.upper() or 'BIGINT' in c_type.upper():
+                        type_class = "type-int"
+                    elif 'DOUBLE' in c_type.upper() or 'FLOAT' in c_type.upper() or 'DECIMAL' in c_type.upper():
+                        type_class = "type-float"
+                    elif 'DATE' in c_type.upper() or 'TIME' in c_type.upper() or 'TIMESTAMP' in c_type.upper():
+                        type_class = "type-date"
+                    col_pills_html += f'<span class="schema-col-pill"><span class="col-name">{c_name}</span><span class="col-type {type_class}">{c_type}</span></span>'
+
+            # Build sample table HTML
+            sample_html = ""
+            if sample_df is not None and not sample_df.empty:
+                headers = "".join(f"<th>{c}</th>" for c in sample_df.columns)
+                rows = ""
+                for _, srow in sample_df.iterrows():
+                    cells = "".join(f"<td>{v}</td>" for v in srow.values)
+                    rows += f"<tr>{cells}</tr>"
+                sample_html = f"""
+                <div class="schema-sample-label">Sample Data</div>
+                <div style="overflow-x:auto;">
+                  <table class="schema-sample-table">
+                    <thead><tr>{headers}</tr></thead>
+                    <tbody>{rows}</tbody>
+                  </table>
+                </div>
+                """
+
+            # Table card
+            st.markdown(f"""
+            <div class="sidebar-table-card">
+              <div class="sidebar-table-header">
+                <div class="tbl-icon">📊</div>
+                <div class="tbl-info">
+                  <div class="tbl-name">{t_name}</div>
+                  <div class="tbl-meta">
+                    <span>{col_count} cols</span>
+                    <span class="meta-dot"></span>
+                    <span>{row_count:,} rows</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            with st.expander(f"📋 View Schema", expanded=False):
+                st.markdown(f"""
+                <div class="schema-columns-grid">
+                  {col_pills_html}
+                </div>
+                {sample_html}
+                """, unsafe_allow_html=True)
+
+    # ── Footer ──
+    st.markdown('<div class="sidebar-divider glow" style="margin-top:auto;"></div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-text">Powered by Groq & DuckDB</div>
+      <div class="sidebar-footer-badge">v2.0 · Pro</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ── SESSION STATE ─────────────────────────────────────────────────────────────
 if "messages"          not in st.session_state: st.session_state.messages = []
@@ -593,7 +1089,7 @@ if st.session_state.active_page == "clean":
                 if filename not in st.session_state.cleaning_questions:
                     with st.spinner(f"🧠 Analyzing {filename}…"):
                         schema_str = "Columns and Data Types:\n" + str(df.dtypes) + "\n\nSample Data:\n" + df.head(10).to_string()
-                        system_prompt = "You are a Data Cleaning Expert. Analyze the dataframe schema and sample data. Identify anomalies like missing values (NaN, null strings), incorrect data types, currency formatting strings (e.g. '$123' instead of numeric), or date strings that need conversion. Give me a concise summary of the problems found and ask the user how they want to handle them (e.g. drop nulls or fill with mean? Strip '$'?). Be conversational and brief."
+                        system_prompt = "You are a Data Cleaning Expert. Analyze the dataframe schema and sample data. Identify anomalies like missing values (NaN, null strings), incorrect data types, currency formatting strings (e.g. '$123' instead of numeric), or date strings that need conversion. also check if null values are there in form of '.' or '?' . Give me a concise summary of the problems found and ask the user how they want to handle them (e.g. drop nulls or fill with mean? Strip '$'?). Be conversational and brief."
                         try:
                             response = client.chat.completions.create(
                                 model=model_name,
@@ -625,6 +1121,7 @@ if st.session_state.active_page == "clean":
 You are a strict code generator. Generate a python function named `custom_clean` that takes a pandas DataFrame `df` as input and returns the cleaned DataFrame.
 Apply the user's instructions to clean the data.
 User Instructions: "{user_instruction}"
+if user says do as you like then do as you think is best for the data and you can use your insights:{st.session_state.cleaning_questions.get(filename, '')}
 
 Data Schema & Sample:
 {schema_for_cleaning}

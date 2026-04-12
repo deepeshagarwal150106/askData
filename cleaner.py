@@ -45,7 +45,7 @@ def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
                 date_like_ratio = col_dropna[str_mask].apply(looks_like_date).mean()
                 if date_like_ratio > 0.5:
                     # Try general parsing first
-                    date_series = pd.to_datetime(df_clean[col], errors='coerce')
+                    date_series = pd.to_datetime(df_clean[col], errors='coerce', dayfirst=True)
                     
                     # Try specific format like '01/24' (m/y)
                     date_series_my = pd.to_datetime(df_clean[col], format='%m/%y', errors='coerce')
